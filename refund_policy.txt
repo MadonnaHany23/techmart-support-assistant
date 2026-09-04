@@ -1,0 +1,7 @@
+# TechMart Refund Policy
+
+After a returned item passes inspection, TechMart issues a refund to the original payment method. Banks and payment providers may take 5-10 business days to make the refund visible on a statement after TechMart processes it.
+
+Shipping charges are non-refundable unless the return is due to a TechMart error (wrong or defective item). Refunds for store credit are issued immediately once a return is received and inspected.
+
+If an order is cancelled before it ships, the full amount is refunded within 2-3 business days.
