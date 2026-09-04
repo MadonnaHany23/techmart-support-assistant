@@ -98,9 +98,18 @@ def get_chroma_client():
 
 
 def get_chroma_collection():
-    """Fetch the existing persisted collection (used by the deployed app)."""
+    """Get the vector collection, creating it from data/ if it is missing."""
     client = get_chroma_client()
-    return client.get_collection(COLLECTION_NAME)
+
+    try:
+        return client.get_collection(COLLECTION_NAME)
+
+    except Exception:
+        # The cloud app starts without a saved Chroma collection.
+        # Build it automatically from the files in data/.
+        print("Chroma collection not found. Building the vector database...")
+        index_documents(rebuild=True)
+        return client.get_collection(COLLECTION_NAME)
 
 
 def index_documents(rebuild: bool = True) -> int:
