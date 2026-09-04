@@ -263,14 +263,23 @@ def answer_question(question: str, prompt_version: str = PROMPT_VERSION, api_key
     context = "\n\n".join(f"[Source: {h['source']}, page {h['page']}]\n{h['text']}" for h in hits)
     try:
         client = get_gemini_client(api_key)
-        response = client.models.generate_content(
-            model=GENERATION_MODEL,
-            contents=[PROMPTS[prompt_version].format(context=context), f"Customer question: {question}"],
-        )
-        answer = (response.text or "").strip()
-        usage = getattr(response, "usage_metadata", None)
-        input_tokens = int(getattr(usage, "prompt_token_count", 0) or 0)
-        output_tokens = int(getattr(usage, "candidates_token_count", 0) or 0)
+
+full_prompt = f"""
+{PROMPTS[prompt_version].format(context=context)}
+
+Customer question: {question}
+"""
+
+interaction = client.interactions.create(
+    model=GENERATION_MODEL,
+    input=full_prompt,
+)
+
+answer = (interaction.output_text or "").strip()
+
+usage = getattr(interaction, "usage", None)
+input_tokens = int(getattr(usage, "total_input_tokens", 0) or 0)
+output_tokens = int(getattr(usage, "total_output_tokens", 0) or 0)
         allowed, safe_answer = output_guardrail(answer)
         result = {
             "answer": answer if allowed else safe_answer,
