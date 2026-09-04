@@ -22,7 +22,7 @@ LOG_DIR = PROJECT_ROOT / "logs"
 for folder in (DATA_DIR, CHROMA_DIR, LOG_DIR):
     folder.mkdir(exist_ok=True)
 
-GENERATION_MODEL = "gemini-2.5-flash"
+GENERATION_MODEL = "gemini-3.6-flash"
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 COLLECTION_NAME = "techmart_support"
 TOP_K = 4
@@ -254,14 +254,17 @@ def answer_question(question: str, prompt_version: str = PROMPT_VERSION, api_key
     context = "\n\n".join(f"[Source: {h['source']}, page {h['page']}]\n{h['text']}" for h in hits)
     try:
         client = get_gemini_client(api_key)
-        response = client.models.generate_content(
+        interaction = client.interactions.create(
             model=GENERATION_MODEL,
-            contents=[PROMPTS[prompt_version].format(context=context), f"Customer question: {question}"],
+            input=(
+                PROMPTS[prompt_version].format(context=context)
+                + f"\n\nCustomer question: {question}"
+                ),      
         )
-        answer = (response.text or "").strip()
-        usage = getattr(response, "usage_metadata", None)
-        input_tokens = int(getattr(usage, "prompt_token_count", 0) or 0)
-        output_tokens = int(getattr(usage, "candidates_token_count", 0) or 0)
+        answer = (interaction.output_text or "").strip()
+        usage = getattr(interaction, "usage", None)
+        input_tokens = int(getattr(usage, "total_input_tokens", 0) or 0)
+        output_tokens = int(getattr(usage, "total_output_tokens", 0) or 0)
         allowed, safe_answer = output_guardrail(answer)
         result = {
             "answer": answer if allowed else safe_answer,
