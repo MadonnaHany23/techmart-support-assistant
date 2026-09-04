@@ -22,7 +22,7 @@ LOG_DIR = PROJECT_ROOT / "logs"
 for folder in (DATA_DIR, CHROMA_DIR, LOG_DIR):
     folder.mkdir(exist_ok=True)
 
-GENERATION_MODEL = "gemini-3.6-flash"
+GENERATION_MODEL = "gemini-2.5-flash"
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 COLLECTION_NAME = "techmart_support"
 TOP_K = 4
@@ -98,18 +98,9 @@ def get_chroma_client():
 
 
 def get_chroma_collection():
-    """Get the vector collection, creating it from data/ if it is missing."""
+    """Fetch the existing persisted collection (used by the deployed app)."""
     client = get_chroma_client()
-
-    try:
-        return client.get_collection(COLLECTION_NAME)
-
-    except Exception:
-        # The cloud app starts without a saved Chroma collection.
-        # Build it automatically from the files in data/.
-        print("Chroma collection not found. Building the vector database...")
-        index_documents(rebuild=True)
-        return client.get_collection(COLLECTION_NAME)
+    return client.get_collection(COLLECTION_NAME)
 
 
 def index_documents(rebuild: bool = True) -> int:
@@ -260,60 +251,36 @@ def answer_question(question: str, prompt_version: str = PROMPT_VERSION, api_key
         log_event({**result, "prompt_version": prompt_version})
         return result
 
-    context = "\n\n".join(
-        f"[Source: {h['source']}, page {h['page']}]\n{h['text']}"
-        for h in hits
-    )
-
+    context = "\n\n".join(f"[Source: {h['source']}, page {h['page']}]\n{h['text']}" for h in hits)
     try:
-                client = get_gemini_client(api_key)
-
-        interaction = client.interactions.create(
+        client = get_gemini_client(api_key)
+        response = client.models.generate_content(
             model=GENERATION_MODEL,
-            input=CONVERSATION_SUMMARY_PROMPT.format(transcript=transcript),
+            contents=[PROMPTS[prompt_version].format(context=context), f"Customer question: {question}"],
         )
-
-        summary = (interaction.output_text or "").strip()
-
-        usage = getattr(interaction, "usage", None)
-        input_tokens = int(getattr(usage, "total_input_tokens", 0) or 0)
-        output_tokens = int(getattr(usage, "total_output_tokens", 0) or 0)
-
+        answer = (response.text or "").strip()
+        usage = getattr(response, "usage_metadata", None)
+        input_tokens = int(getattr(usage, "prompt_token_count", 0) or 0)
+        output_tokens = int(getattr(usage, "candidates_token_count", 0) or 0)
         allowed, safe_answer = output_guardrail(answer)
         result = {
             "answer": answer if allowed else safe_answer,
             "citations": format_citations(hits) if allowed else [],
-            "retrieved_chunks": hits,
-            "category": category,
+            "retrieved_chunks": hits, "category": category,
             "status": "answered" if allowed else "blocked_output",
-            "request_id": request_id,
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
+            "request_id": request_id, "input_tokens": input_tokens, "output_tokens": output_tokens,
             "cost_usd": round(estimate_cost(input_tokens, output_tokens), 6),
         }
-
     except Exception as exc:
         result = {
             "answer": "I'm sorry, the support assistant is temporarily unavailable. Please try again shortly.",
-            "citations": [],
-            "retrieved_chunks": hits,
-            "category": category,
-            "status": "error",
-            "error_type": type(exc).__name__,
-            "error_detail": str(exc)[:500],
-            "request_id": request_id,
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "cost_usd": 0.0,
+            "citations": [], "retrieved_chunks": hits, "category": category, "status": "error",
+            "error_type": type(exc).__name__, "error_detail": str(exc)[:500],
+            "request_id": request_id, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0,
         }
-
     result["latency_ms"] = round((time.perf_counter() - started) * 1000, 1)
-    log_event({
-        **result,
-        "question_hash": hashlib.sha256(question.encode()).hexdigest()[:12],
-        "prompt_version": prompt_version,
-        "model": GENERATION_MODEL,
-    })
+    log_event({**result, "question_hash": hashlib.sha256(question.encode()).hexdigest()[:12],
+               "prompt_version": prompt_version, "model": GENERATION_MODEL})
     return result
 
 
