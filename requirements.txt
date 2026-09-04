@@ -1,6 +1,6 @@
 streamlit
 pandas
-google-genai
+google-genai>=2.3.0
 sentence-transformers
 chromadb
 pypdf
