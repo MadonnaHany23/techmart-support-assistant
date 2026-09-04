@@ -22,7 +22,7 @@ LOG_DIR = PROJECT_ROOT / "logs"
 for folder in (DATA_DIR, CHROMA_DIR, LOG_DIR):
     folder.mkdir(exist_ok=True)
 
-GENERATION_MODEL = "gemini-2.5-flash"
+GENERATION_MODEL = "gemini-3.6-flash"
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 COLLECTION_NAME = "techmart_support"
 TOP_K = 4
