@@ -96,11 +96,35 @@ def get_chroma_client():
     import chromadb
     return chromadb.PersistentClient(path=str(CHROMA_DIR))
 
-
 def get_chroma_collection():
-    """Fetch the existing persisted collection (used by the deployed app)."""
+    """
+    Get the TechMart ChromaDB collection.
+
+    If the collection does not exist or is empty, automatically
+    build the vector database from the documents in data/.
+    """
     client = get_chroma_client()
-    return client.get_collection(COLLECTION_NAME)
+
+    try:
+        collection = client.get_collection(COLLECTION_NAME)
+
+        # Collection exists and contains documents
+        if collection.count() > 0:
+            return collection
+
+    except Exception:
+        # Collection does not exist
+        collection = None
+
+    # Collection is missing or empty
+    print("ChromaDB collection missing or empty. Building index...")
+
+    index_documents(rebuild=True)
+
+    # Get the newly created collection
+    collection = client.get_collection(COLLECTION_NAME)
+
+    return collection
 
 
 def index_documents(rebuild: bool = True) -> int:
